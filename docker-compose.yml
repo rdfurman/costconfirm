@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: costconfirm-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: costconfirm
+      POSTGRES_PASSWORD: costconfirm_dev_password
+      POSTGRES_DB: costconfirm
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U costconfirm"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Next.js Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: costconfirm-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Database
+      DATABASE_URL: "postgresql://costconfirm:costconfirm_dev_password@db:5432/costconfirm"
+      # Auth.js
+      NEXTAUTH_SECRET: "6wilhdl4tdBAJ3H0igozFsq9Io2/w4F1f0rhhWJ2diI="
+      AUTH_SECRET: "6wilhdl4tdBAJ3H0igozFsq9Io2/w4F1f0rhhWJ2diI="
+      NEXTAUTH_URL: "http://localhost:3000"
+      AUTH_TRUST_HOST: "true"
+      # Node
+      NODE_ENV: "development"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # Mount source code for hot reload in development
+      - ./app:/app/app
+      - ./components:/app/components
+      - ./lib:/app/lib
+      - ./prisma:/app/prisma
+      - ./types:/app/types
+      - ./public:/app/public
+      # Exclude generated Prisma files (use container's Alpine-generated version)
+      - /app/app/generated
+    command: sh -c "node server.js"
+
+  # Optional: Prisma Studio for database management
+  studio:
+    image: node:20-alpine
+    container_name: costconfirm-studio
+    working_dir: /app
+    ports:
+      - "5555:5555"
+    environment:
+      DATABASE_URL: "postgresql://costconfirm:costconfirm_dev_password@db:5432/costconfirm"
+    volumes:
+      - ./prisma:/app/prisma
+      - ./node_modules:/app/node_modules
+      - ./package.json:/app/package.json
+    command: sh -c "npm install -g prisma && prisma studio --hostname 0.0.0.0"
+    depends_on:
+      - db
+    profiles:
+      - tools
+
+volumes:
+  postgres_data:
+    driver: local

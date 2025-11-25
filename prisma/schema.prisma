@@ -1,0 +1,162 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider      = "prisma-client"
+  output        = "../app/generated/prisma"
+  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CLIENT
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  role          Role      @default(CLIENT)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  projects      Project[]
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+model Project {
+  id                   String          @id @default(cuid())
+  name                 String
+  description          String?
+  address              String?
+  contractor           String?         // Name of contractor/builder
+  projectedCompletion  DateTime?       // Estimated completion date
+  actualCompletion     DateTime?       // Actual completion date
+  userId               String
+  user                 User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  // Relations
+  actualCosts          ActualCost[]
+  projectedCosts       ProjectedCost[]
+  buildPhases          BuildPhase[]
+
+  @@index([userId])
+}
+
+enum CostCategory {
+  MATERIALS
+  LABOR
+  MISCELLANEOUS
+}
+
+model ActualCost {
+  id          String        @id @default(cuid())
+  category    CostCategory
+  itemName    String        // e.g., "2x4 lumber", "Framing labor", "Permit fees"
+  count       Decimal       @db.Decimal(10, 3)  // Quantity (e.g., 100 pieces, 40 hours)
+  unit        String        // e.g., "pieces", "hours", "sq ft"
+  unitCost    Decimal       @db.Decimal(10, 2)  // Cost per unit
+  totalCost   Decimal       @db.Decimal(10, 2)  // Calculated: count × unitCost
+  date        DateTime      // Date of expense
+  vendor      String?       // Supplier/subcontractor name
+  notes       String?       // Additional details
+  projectId   String
+  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([projectId])
+  @@index([date])
+  @@index([category])
+}
+
+model ProjectedCost {
+  id          String        @id @default(cuid())
+  category    CostCategory
+  itemName    String        // e.g., "2x4 lumber", "Framing labor"
+  count       Decimal       @db.Decimal(10, 3)  // Estimated quantity
+  unit        String        // e.g., "pieces", "hours", "sq ft"
+  unitCost    Decimal       @db.Decimal(10, 2)  // Estimated cost per unit
+  totalCost   Decimal       @db.Decimal(10, 2)  // Calculated: count × unitCost
+  notes       String?       // Estimation notes
+  projectId   String
+  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([projectId])
+  @@index([category])
+}
+
+model BuildPhase {
+  id                      String    @id @default(cuid())
+  name                    String    // e.g., "Foundation", "Framing", "Electrical"
+  description             String?   // Details about this phase
+  projectedStartDate      DateTime? // When phase should start
+  projectedCompletionDate DateTime? // When phase should complete
+  actualStartDate         DateTime? // When phase actually started
+  actualCompletionDate    DateTime? // When phase actually completed
+  delayReason             String?   // Notes on why delayed
+  projectId               String
+  project                 Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@index([projectId])
+  @@index([projectedCompletionDate])
+  @@index([actualCompletionDate])
+}
