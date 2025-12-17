@@ -21,18 +21,23 @@ enum Role {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  role          Role      @default(CLIENT)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  name           String?
+  email          String    @unique
+  emailVerified  DateTime?
+  image          String?
+  hashedPassword String?   // Password hash - nullable for migration compatibility
+  role           Role      @default(CLIENT)
+  deletedAt      DateTime? // Soft delete for GDPR compliance
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  accounts      Account[]
-  sessions      Session[]
-  projects      Project[]
+  accounts       Account[]
+  sessions       Session[]
+  projects       Project[]
+
+  @@index([deletedAt])
+  @@index([email, deletedAt])
 }
 
 model Account {
@@ -84,6 +89,7 @@ model Project {
   contractor           String?         // Name of contractor/builder
   projectedCompletion  DateTime?       // Estimated completion date
   actualCompletion     DateTime?       // Actual completion date
+  deletedAt            DateTime?       // Soft delete for data retention
   userId               String
   user                 User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt            DateTime        @default(now())
@@ -95,6 +101,8 @@ model Project {
   buildPhases          BuildPhase[]
 
   @@index([userId])
+  @@index([deletedAt])
+  @@index([userId, deletedAt])
 }
 
 enum CostCategory {
@@ -159,4 +167,22 @@ model BuildPhase {
   @@index([projectId])
   @@index([projectedCompletionDate])
   @@index([actualCompletionDate])
+}
+
+model SecurityLog {
+  id        String   @id @default(cuid())
+  event     String   // Event type (auth_success, auth_failure, etc.)
+  userId    String?  // User involved in the event
+  email     String?  // Email address (for auth events)
+  ip        String?  // Client IP address
+  userAgent String?  // Client user agent
+  resource  String?  // Resource being accessed (e.g., "project:123")
+  action    String?  // Action performed (e.g., "read", "update", "delete")
+  details   Json?    // Additional event-specific data
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([event])
+  @@index([createdAt])
+  @@index([email])
 }

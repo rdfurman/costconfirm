@@ -1,22 +1,45 @@
 import { PrismaClient, Prisma } from "../app/generated/prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
+
+async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, 12);
+}
 
 async function main() {
   console.log("Starting seed...");
 
-  // Create a test user (this would normally be created via Auth.js)
-  const user = await prisma.user.upsert({
-    where: { email: "test@example.com" },
+  // Create CLIENT test user
+  const clientUser = await prisma.user.upsert({
+    where: { email: "client@example.com" },
     update: {},
     create: {
-      email: "test@example.com",
-      name: "Test User",
+      email: "client@example.com",
+      name: "Test Client",
       role: "CLIENT",
+      hashedPassword: await hashPassword("password123"),
     },
   });
 
-  console.log("Created user:", user.email);
+  console.log("Created CLIENT user:", clientUser.email, "(password: password123)");
+
+  // Create ADMIN test user
+  const adminUser = await prisma.user.upsert({
+    where: { email: "admin@example.com" },
+    update: {},
+    create: {
+      email: "admin@example.com",
+      name: "Test Admin",
+      role: "ADMIN",
+      hashedPassword: await hashPassword("admin123"),
+    },
+  });
+
+  console.log("Created ADMIN user:", adminUser.email, "(password: admin123)");
+
+  // Use client user for sample data
+  const user = clientUser;
 
   // Create a sample project
   const project = await prisma.project.upsert({

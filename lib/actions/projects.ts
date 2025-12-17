@@ -2,46 +2,57 @@
 
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { auth } from "@/lib/auth";
-
-async function getCurrentUserId() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
-  return session.user.id;
-}
+import { requireAuth, requireClient } from "@/lib/auth-utils";
+import {
+  createProjectSchema,
+  updateProjectSchema,
+  type CreateProjectInput,
+  type UpdateProjectInput,
+} from "@/lib/validations/project";
 
 export async function getProjects() {
-  const userId = await getCurrentUserId();
+  const user = await requireAuth();
 
-  if (!userId) {
-    throw new Error("Unauthorized");
+  // CLIENT: only their non-deleted projects
+  if (user.role === "CLIENT") {
+    const userProjects = await db.user.findUnique({
+      where: {
+        id: user.id,
+        deletedAt: null, // Exclude soft-deleted users
+      },
+      include: {
+        projects: {
+          where: { deletedAt: null }, // Exclude soft-deleted projects
+          orderBy: { updatedAt: "desc" },
+        },
+      },
+    });
+    return userProjects?.projects || [];
   }
 
-  const user = await db.user.findUnique({
-    where: { id: userId },
+  // ADMIN: all non-deleted projects
+  return await db.project.findMany({
+    where: { deletedAt: null }, // Exclude soft-deleted projects
+    orderBy: { updatedAt: "desc" },
     include: {
-      projects: {
-        orderBy: { updatedAt: "desc" },
+      user: {
+        select: {
+          name: true,
+          email: true,
+        },
       },
     },
   });
-
-  return user?.projects || [];
 }
 
 export async function getProject(projectId: string) {
-  const userId = await getCurrentUserId();
-
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
+  const user = await requireAuth();
 
   const project = await db.project.findFirst({
     where: {
       id: projectId,
-      userId: userId,
+      deletedAt: null, // Exclude soft-deleted projects
+      ...(user.role === "CLIENT" ? { userId: user.id } : {}),
     },
     include: {
       actualCosts: {
@@ -63,23 +74,19 @@ export async function getProject(projectId: string) {
   return project;
 }
 
-export async function createProject(data: {
-  name: string;
-  description?: string;
-  address?: string;
-  contractor?: string;
-  projectedCompletion?: Date;
-}) {
-  const userId = await getCurrentUserId();
+export async function createProject(data: CreateProjectInput) {
+  const user = await requireClient(); // Only clients can create projects
 
-  if (!userId) {
-    throw new Error("Unauthorized");
+  // Validate input
+  const validation = createProjectSchema.safeParse(data);
+  if (!validation.success) {
+    throw new Error(validation.error.issues[0].message);
   }
 
   const project = await db.project.create({
     data: {
-      ...data,
-      userId: userId,
+      ...validation.data,
+      userId: user.id,
     },
   });
 
@@ -89,47 +96,67 @@ export async function createProject(data: {
 
 export async function updateProject(
   projectId: string,
-  data: {
-    name?: string;
-    description?: string;
-    address?: string;
-    contractor?: string;
-    projectedCompletion?: Date;
-    actualCompletion?: Date;
-  }
+  data: UpdateProjectInput
 ) {
-  const userId = await getCurrentUserId();
+  const user = await requireAuth();
 
-  if (!userId) {
-    throw new Error("Unauthorized");
+  // Validate input
+  const validation = updateProjectSchema.safeParse(data);
+  if (!validation.success) {
+    throw new Error(validation.error.issues[0].message);
   }
 
-  const project = await db.project.updateMany({
-    where: {
-      id: projectId,
-      userId: userId,
-    },
-    data,
-  });
+  if (user.role === "CLIENT") {
+    // CLIENT: must own the project
+    const result = await db.project.updateMany({
+      where: {
+        id: projectId,
+        userId: user.id, // Ownership check
+      },
+      data: validation.data,
+    });
 
-  revalidatePath("/projects");
-  revalidatePath(`/projects/${projectId}`);
-  return project;
+    if (result.count === 0) {
+      throw new Error("Project not found or unauthorized");
+    }
+
+    revalidatePath("/projects");
+    revalidatePath(`/projects/${projectId}`);
+    return result;
+  } else {
+    // ADMIN: can update any project
+    const result = await db.project.update({
+      where: { id: projectId },
+      data: validation.data,
+    });
+
+    revalidatePath("/projects");
+    revalidatePath(`/projects/${projectId}`);
+    return result;
+  }
 }
 
 export async function deleteProject(projectId: string) {
-  const userId = await getCurrentUserId();
+  const user = await requireAuth();
 
-  if (!userId) {
-    throw new Error("Unauthorized");
+  if (user.role === "CLIENT") {
+    // CLIENT: must own the project
+    const result = await db.project.deleteMany({
+      where: {
+        id: projectId,
+        userId: user.id,
+      },
+    });
+
+    if (result.count === 0) {
+      throw new Error("Project not found or unauthorized");
+    }
+  } else {
+    // ADMIN: can delete any project
+    await db.project.delete({
+      where: { id: projectId },
+    });
   }
-
-  await db.project.deleteMany({
-    where: {
-      id: projectId,
-      userId: userId,
-    },
-  });
 
   revalidatePath("/projects");
 }

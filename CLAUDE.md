@@ -174,6 +174,12 @@ The application is containerized for easy local development:
 
 ## Important Conventions
 
+### Documentation
+- All documentation markdown files (*.md) must be placed in the `docs/` folder
+- Examples: security audits, implementation plans, phase completion summaries
+- Exception: Root-level files like README.md and CLAUDE.md
+- Use descriptive filenames: `PHASE1_COMPLETE.md`, `SECURITY_AUDIT.md`, etc.
+
 ### Authentication & Authorization
 - Always verify user roles before granting access to protected features
 - Use Auth.js's `auth()` helper in Server Components and API routes

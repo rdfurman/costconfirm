@@ -2,41 +2,19 @@
 
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { auth } from "@/lib/auth";
+import { requireAuth } from "@/lib/auth-utils";
+import {
+  createBuildPhaseSchema,
+  updateBuildPhaseSchema,
+  type CreateBuildPhaseInput,
+  type UpdateBuildPhaseInput,
+} from "@/lib/validations/build-phase";
 
-async function getCurrentUserId() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
-  return session.user.id;
-}
-
-interface BuildPhaseInput {
-  name: string;
-  description?: string;
-  projectedStartDate?: Date;
-  projectedCompletionDate?: Date;
-  actualStartDate?: Date;
-  actualCompletionDate?: Date;
-  delayReason?: string;
-}
-
-export async function createBuildPhase(
-  projectId: string,
-  data: BuildPhaseInput
-) {
-  const userId = await getCurrentUserId();
-
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
-
-  // Verify project belongs to user
+async function verifyProjectAccess(projectId: string, userId: string, userRole: string) {
   const project = await db.project.findFirst({
     where: {
       id: projectId,
-      userId: userId,
+      ...(userRole === "CLIENT" ? { userId } : {}),
     },
   });
 
@@ -44,16 +22,28 @@ export async function createBuildPhase(
     throw new Error("Project not found or unauthorized");
   }
 
+  return project;
+}
+
+export async function createBuildPhase(
+  projectId: string,
+  data: CreateBuildPhaseInput
+) {
+  const user = await requireAuth();
+
+  // Validate input
+  const validation = createBuildPhaseSchema.safeParse(data);
+  if (!validation.success) {
+    throw new Error(validation.error.issues[0].message);
+  }
+
+  // Verify project access
+  await verifyProjectAccess(projectId, user.id, user.role);
+
   const buildPhase = await db.buildPhase.create({
     data: {
-      name: data.name,
-      description: data.description,
-      projectedStartDate: data.projectedStartDate,
-      projectedCompletionDate: data.projectedCompletionDate,
-      actualStartDate: data.actualStartDate,
-      actualCompletionDate: data.actualCompletionDate,
-      delayReason: data.delayReason,
-      projectId: projectId,
+      ...validation.data,
+      projectId,
     },
   });
 
@@ -62,23 +52,10 @@ export async function createBuildPhase(
 }
 
 export async function getBuildPhasesByProject(projectId: string) {
-  const userId = await getCurrentUserId();
+  const user = await requireAuth();
 
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
-
-  // Verify project belongs to user
-  const project = await db.project.findFirst({
-    where: {
-      id: projectId,
-      userId: userId,
-    },
-  });
-
-  if (!project) {
-    throw new Error("Project not found or unauthorized");
-  }
+  // Verify project access
+  await verifyProjectAccess(projectId, user.id, user.role);
 
   const phases = await db.buildPhase.findMany({
     where: { projectId },
@@ -90,12 +67,14 @@ export async function getBuildPhasesByProject(projectId: string) {
 
 export async function updateBuildPhase(
   phaseId: string,
-  data: Partial<BuildPhaseInput>
+  data: UpdateBuildPhaseInput
 ) {
-  const userId = await getCurrentUserId();
+  const user = await requireAuth();
 
-  if (!userId) {
-    throw new Error("Unauthorized");
+  // Validate input
+  const validation = updateBuildPhaseSchema.safeParse(data);
+  if (!validation.success) {
+    throw new Error(validation.error.issues[0].message);
   }
 
   // Verify phase belongs to user's project
@@ -103,7 +82,7 @@ export async function updateBuildPhase(
     where: {
       id: phaseId,
       project: {
-        userId: userId,
+        ...(user.role === "CLIENT" ? { userId: user.id } : {}),
       },
     },
     include: {
@@ -117,7 +96,7 @@ export async function updateBuildPhase(
 
   const updatedPhase = await db.buildPhase.update({
     where: { id: phaseId },
-    data,
+    data: validation.data,
   });
 
   revalidatePath(`/projects/${phase.projectId}`);
@@ -125,18 +104,14 @@ export async function updateBuildPhase(
 }
 
 export async function deleteBuildPhase(phaseId: string) {
-  const userId = await getCurrentUserId();
-
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
+  const user = await requireAuth();
 
   // Verify phase belongs to user's project
   const phase = await db.buildPhase.findFirst({
     where: {
       id: phaseId,
       project: {
-        userId: userId,
+        ...(user.role === "CLIENT" ? { userId: user.id } : {}),
       },
     },
     include: {
@@ -156,23 +131,10 @@ export async function deleteBuildPhase(phaseId: string) {
 }
 
 export async function getProjectTimeline(projectId: string) {
-  const userId = await getCurrentUserId();
+  const user = await requireAuth();
 
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
-
-  // Verify project belongs to user
-  const project = await db.project.findFirst({
-    where: {
-      id: projectId,
-      userId: userId,
-    },
-  });
-
-  if (!project) {
-    throw new Error("Project not found or unauthorized");
-  }
+  // Verify project access
+  const project = await verifyProjectAccess(projectId, user.id, user.role);
 
   const phases = await db.buildPhase.findMany({
     where: { projectId },
@@ -206,18 +168,14 @@ export async function getProjectTimeline(projectId: string) {
 }
 
 export async function markPhaseStarted(phaseId: string, startDate?: Date) {
-  const userId = await getCurrentUserId();
-
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
+  const user = await requireAuth();
 
   // Verify phase belongs to user's project
   const phase = await db.buildPhase.findFirst({
     where: {
       id: phaseId,
       project: {
-        userId: userId,
+        ...(user.role === "CLIENT" ? { userId: user.id } : {}),
       },
     },
     include: {
@@ -244,18 +202,14 @@ export async function markPhaseCompleted(
   phaseId: string,
   completionDate?: Date
 ) {
-  const userId = await getCurrentUserId();
-
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
+  const user = await requireAuth();
 
   // Verify phase belongs to user's project
   const phase = await db.buildPhase.findFirst({
     where: {
       id: phaseId,
       project: {
-        userId: userId,
+        ...(user.role === "CLIENT" ? { userId: user.id } : {}),
       },
     },
     include: {
