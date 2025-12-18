@@ -100,16 +100,49 @@ docker-compose --profile tools up studio
 
 #### Method 1: Direct Database Access (Recommended - Most Secure)
 
-Use a PostgreSQL client to directly update the database:
+**Option A: From Inside the Database Container** (Easiest)
+
+```bash
+# Enter the database container shell
+docker exec -it costconfirm-db-prod sh
+
+# Connect to PostgreSQL (credentials from .env)
+psql -U costconfirm -d costconfirm
+
+# You'll see the PostgreSQL prompt: costconfirm=#
+
+# Promote user to admin
+UPDATE "User" SET role = 'ADMIN' WHERE email = 'your@email.com';
+
+# Verify the change
+SELECT id, email, role FROM "User" WHERE email = 'your@email.com';
+
+# Exit psql
+\q
+
+# Exit container
+exit
+```
+
+**One-liner from host** (no need to enter container):
+```bash
+# Promote to admin
+docker exec -it costconfirm-db-prod psql -U costconfirm -d costconfirm -c "UPDATE \"User\" SET role = 'ADMIN' WHERE email = 'your@email.com';"
+
+# Verify
+docker exec -it costconfirm-db-prod psql -U costconfirm -d costconfirm -c "SELECT email, role FROM \"User\" WHERE email = 'your@email.com';"
+```
+
+**Option B: Using psql Client from Host**
+
+If you have `psql` installed on your machine:
 
 ```bash
 # Connect to your production database
 psql "$PRODUCTION_DATABASE_URL"
 
 # Promote user to admin
-UPDATE "User"
-SET role = 'ADMIN'
-WHERE email = 'your@email.com';
+UPDATE "User" SET role = 'ADMIN' WHERE email = 'your@email.com';
 
 # Verify the change
 SELECT id, email, role FROM "User" WHERE email = 'your@email.com';
@@ -118,9 +151,8 @@ SELECT id, email, role FROM "User" WHERE email = 'your@email.com';
 \q
 ```
 
-**Using environment variable**:
+**One-liner**:
 ```bash
-# If DATABASE_URL is set in your production environment
 psql "$DATABASE_URL" -c "UPDATE \"User\" SET role = 'ADMIN' WHERE email = 'your@email.com';"
 ```
 
