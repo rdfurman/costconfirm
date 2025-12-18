@@ -41,9 +41,13 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
+# Install tsx globally for running scripts
+RUN npm install -g tsx
+
 # Copy necessary files
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/scripts ./scripts
 
 # Copy public directory if it has content, otherwise create empty dir
 COPY --from=builder /app/public ./public

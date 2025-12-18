@@ -49,6 +49,7 @@ services:
       - ./components:/app/components
       - ./lib:/app/lib
       - ./prisma:/app/prisma
+      - ./scripts:/app/scripts
       - ./types:/app/types
       - ./public:/app/public
       # Exclude generated Prisma files (use container's Alpine-generated version)
