@@ -69,9 +69,7 @@ jobs:
             --exclude='node_modules' \
             --exclude='.next' \
             docker-compose.production.yml \
-            scripts/deploy.sh \
-            scripts/migrate.sh \
-            scripts/backup.sh \
+            scripts \
             deploy-server:/var/www/costconfirm/
 
       - name: Deploy application
