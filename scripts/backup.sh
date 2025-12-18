@@ -19,6 +19,18 @@ echo "Creating database backup..."
 # Create backup directory if it doesn't exist
 mkdir -p ${BACKUP_DIR}
 
+# Check if database container exists
+if ! docker ps -a --format '{{.Names}}' | grep -q '^costconfirm-db-prod$'; then
+  echo "Database container doesn't exist yet (first deployment). Skipping backup."
+  exit 0
+fi
+
+# Check if database container is running
+if ! docker ps --format '{{.Names}}' | grep -q '^costconfirm-db-prod$'; then
+  echo "Database container is not running. Skipping backup."
+  exit 0
+fi
+
 # Create backup using docker exec
 docker exec costconfirm-db-prod pg_dump \
   -U ${POSTGRES_USER} \

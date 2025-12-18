@@ -15,9 +15,23 @@ set -a
 source ${ENV_FILE}
 set +a
 
+# Start database if not running (creates network)
+docker-compose -f ${COMPOSE_FILE} --env-file ${ENV_FILE} up -d db
+
+# Wait for database to be ready
+echo "Waiting for database to be ready..."
+sleep 5
+
 # Run migrations in a temporary container
+# Use the network created by docker-compose
+NETWORK_NAME=$(docker network ls --filter name=costconfirm --format "{{.Name}}" | head -1)
+if [ -z "$NETWORK_NAME" ]; then
+  echo "Error: Could not find costconfirm network"
+  exit 1
+fi
+
 docker run --rm \
-  --network costconfirm_costconfirm-network \
+  --network ${NETWORK_NAME} \
   -e DATABASE_URL="${DATABASE_URL}" \
   costconfirm:${IMAGE_TAG} \
   sh -c "npx prisma migrate deploy"
