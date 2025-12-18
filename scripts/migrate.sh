@@ -34,6 +34,6 @@ docker run --rm \
   --network ${NETWORK_NAME} \
   -e DATABASE_URL="${DATABASE_URL}" \
   costconfirm:${IMAGE_TAG} \
-  sh -c "npx prisma migrate deploy"
+  sh -c "npx prisma@6.19.0 migrate deploy"
 
 echo "Migrations completed successfully"
