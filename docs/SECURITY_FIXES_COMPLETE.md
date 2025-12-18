@@ -73,7 +73,7 @@ echo "POSTGRES_PASSWORD=$(openssl rand -base64 32)"
 
 2. **Create new Resend API key**:
    - Visit: https://resend.com/api-keys
-   - Delete old key: `re_iCMjkcXU_Q4nxtRadoGaDuEo1SujMXiY5`
+   - Delete old key
    - Create new key
    - Add to `.env`: `RESEND_API_KEY=re_your_new_key`
 
