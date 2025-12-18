@@ -75,14 +75,3 @@ jobs:
       - name: Deploy application
         run: |
           ssh deploy-server "cd /var/www/costconfirm && bash deploy.sh ${{ github.sha }}"
-
-      - name: Verify deployment and cleanup
-        continue-on-error: true
-        run: |
-          sleep 2
-          ssh deploy-server "
-            docker ps --filter name=costconfirm --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' &&
-            cd /var/www/costconfirm &&
-            docker image prune -af --filter 'until=72h' || true
-          "
-          echo "Deployment completed successfully!"
