@@ -78,7 +78,7 @@ jobs:
 
       - name: Verify deployment
         run: |
-          ssh deploy-server "docker ps | grep costconfirm"
+          ssh deploy-server "docker ps --filter name=costconfirm --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'"
           echo "Deployment completed successfully!"
 
       - name: Cleanup old images
