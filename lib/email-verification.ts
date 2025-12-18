@@ -19,7 +19,16 @@ import { logSecurityEvent } from "@/lib/security-logger";
 
 // Lazy-load Resend to avoid build-time initialization
 function getResend() {
-  return new Resend(process.env.RESEND_API_KEY);
+  const apiKey = process.env.RESEND_API_KEY;
+
+  if (!apiKey) {
+    throw new Error(
+      "RESEND_API_KEY environment variable is not set. " +
+      "Please add it to your .env file or environment configuration."
+    );
+  }
+
+  return new Resend(apiKey);
 }
 
 const TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
