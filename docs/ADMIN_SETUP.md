@@ -73,41 +73,139 @@ Admin users see additional navigation links in the dashboard header:
 - **Projects**: Standard project list (shows all projects for admins)
 - **Users**: User management page (admin only)
 
-## Docker Environment
+## Making Yourself Admin
 
 ### Local Development
 
-When using Docker for local development:
+For local development, you can use the make-admin script:
 
 ```bash
-# Option 1: Run from inside the container
-docker-compose exec app npm run make-admin your.email@example.com
+# Option 1: Run from inside the container (recommended)
+docker-compose exec app sh -c "cd /app && npm install tsx && npx tsx scripts/make-admin.ts your.email@example.com"
 
 # Option 2: Run from host machine (database is exposed on port 5433)
-# Make sure your .env.local has: DATABASE_URL="postgresql://user:pass@localhost:5433/costconfirm"
+# First, ensure your local DATABASE_URL points to port 5433:
+# DATABASE_URL="postgresql://costconfirm:password@localhost:5433/costconfirm"
 npm run make-admin your.email@example.com
+
+# Option 3: Use Prisma Studio
+docker-compose --profile tools up studio
+# Visit http://localhost:5555
+# Navigate to User table → Find your user → Change role to ADMIN
 ```
 
-### Production
+### Production (Secure Methods)
 
-The scripts directory is included in the production Docker image. To promote a user in production:
+**IMPORTANT**: The scripts directory is intentionally **NOT included** in the production Docker image for security reasons. Use one of these secure methods instead:
+
+#### Method 1: Direct Database Access (Recommended - Most Secure)
+
+Use a PostgreSQL client to directly update the database:
 
 ```bash
-# SSH into your production server, then:
-docker exec costconfirm-app npm run make-admin user@example.com
+# Connect to your production database
+psql "$PRODUCTION_DATABASE_URL"
 
-# Or if using docker-compose in production:
-docker-compose exec app npm run make-admin user@example.com
+# Promote user to admin
+UPDATE "User"
+SET role = 'ADMIN'
+WHERE email = 'your@email.com';
 
-# Or enter the container shell first:
-docker exec -it costconfirm-app sh
-npm run make-admin user@example.com
+# Verify the change
+SELECT id, email, role FROM "User" WHERE email = 'your@email.com';
+
+# Exit
+\q
 ```
 
-**Security Note**: The scripts are only accessible via shell access to the container, which requires:
-- SSH access to the production server
-- Docker execution permissions
-- The script cannot be called via HTTP/API
+**Using environment variable**:
+```bash
+# If DATABASE_URL is set in your production environment
+psql "$DATABASE_URL" -c "UPDATE \"User\" SET role = 'ADMIN' WHERE email = 'your@email.com';"
+```
+
+#### Method 2: Database GUI Tool (Easiest for Non-Technical Users)
+
+Use any PostgreSQL GUI client:
+
+**Popular Options**:
+- [TablePlus](https://tableplus.com/) (Mac/Windows/Linux)
+- [pgAdmin](https://www.pgadmin.org/) (Free, Cross-platform)
+- [DBeaver](https://dbeaver.io/) (Free, Cross-platform)
+- [Postico](https://eggerapps.at/postico/) (Mac only)
+
+**Steps**:
+1. Connect to your production database using the connection string
+2. Navigate to the `User` table
+3. Find the user by email address
+4. Edit the `role` column and change it to `ADMIN`
+5. Save the changes
+
+#### Method 3: One-Time Admin CLI Container (Advanced)
+
+If you need to run admin scripts regularly in production, create a separate admin CLI service:
+
+**Create**: `docker-compose.prod.yml` (ONLY for production admin tasks)
+
+```yaml
+version: '3.8'
+
+services:
+  admin-cli:
+    build:
+      context: .
+      target: builder  # Use builder stage which has all dependencies
+    working_dir: /app
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    volumes:
+      - ./scripts:/app/scripts
+      - ./prisma:/app/prisma
+    profiles:
+      - admin  # Only starts with --profile admin
+    command: sh -c "npx tsx scripts/make-admin.ts ${ADMIN_EMAIL}"
+```
+
+**Usage**:
+```bash
+# On production server
+ADMIN_EMAIL=user@example.com docker-compose -f docker-compose.prod.yml --profile admin run --rm admin-cli
+```
+
+#### Method 4: Prisma Migration (First Admin Only)
+
+For the very first admin during initial deployment, create a migration:
+
+**Create**: `prisma/migrations/YYYYMMDDHHMMSS_initial_admin/migration.sql`
+
+```sql
+-- Promote initial admin (replace with your email)
+UPDATE "User"
+SET role = 'ADMIN'
+WHERE email = 'your@email.com';
+```
+
+Then deploy:
+```bash
+npx prisma migrate deploy
+```
+
+**WARNING**: This only works if the user already exists in the database.
+
+### Production Deployment Recommendations
+
+**Best Practice for Production**:
+
+1. **First Admin**: Use Method 4 (Prisma Migration) or Method 1 (Direct SQL) during initial setup
+2. **Subsequent Admins**: Use Method 1 (Direct SQL) - it's the most secure and auditable
+3. **Never** include admin promotion scripts in production Docker images
+4. **Always** require production database access for admin promotion (proper separation of concerns)
+
+**Security Benefits**:
+- Admin promotion requires production database credentials (not just container access)
+- Cannot be exploited via container compromise or RCE vulnerabilities
+- Clear audit trail (database logs + manual SecurityLog entries)
+- Follows principle of least privilege
 
 ## Best Practices
 
