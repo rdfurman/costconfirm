@@ -55,12 +55,10 @@ export async function deleteUserAccount() {
         },
       });
 
-      // Delete sessions (force logout)
-      await tx.session.deleteMany({
-        where: { userId },
-      });
+      // Note: Sessions are JWT-based (stored in cookies), not in database
+      // Deleted users will remain logged in until their JWT expires (max 30 days)
 
-      // Delete accounts (OAuth connections)
+      // Delete accounts (OAuth connections if any exist in future)
       await tx.account.deleteMany({
         where: { userId },
       });
@@ -142,11 +140,9 @@ export async function permanentlyDeleteUser(userId: string) {
         where: { userId },
       });
 
-      // Delete sessions and accounts
-      await tx.session.deleteMany({
-        where: { userId },
-      });
+      // Note: Sessions are JWT-based (stored in cookies), not in database
 
+      // Delete accounts (OAuth connections if any exist in future)
       await tx.account.deleteMany({
         where: { userId },
       });

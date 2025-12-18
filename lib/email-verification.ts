@@ -92,7 +92,10 @@ export async function verifyEmail(
     // Delete verification token
     await db.verificationToken.delete({
       where: {
-        identifier: verificationToken.identifier,
+        identifier_token: {
+          identifier: verificationToken.identifier,
+          token: verificationToken.token,
+        },
       },
     });
 

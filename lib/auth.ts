@@ -20,22 +20,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
   // Session configuration
   session: {
-    strategy: "database",
+    strategy: "jwt", // Required for Credentials provider
     maxAge: 30 * 24 * 60 * 60, // 30 days
-    updateAge: 24 * 60 * 60, // Update session in DB every 24 hours
-  },
-
-  // Secure cookie configuration
-  cookies: {
-    sessionToken: {
-      name: `${process.env.NODE_ENV === "production" ? "__Secure-" : ""}next-auth.session-token`,
-      options: {
-        httpOnly: true, // Prevent XSS access to cookie
-        sameSite: "lax", // CSRF protection
-        path: "/",
-        secure: process.env.NODE_ENV === "production", // HTTPS only in production
-      },
-    },
   },
 
   providers: [
@@ -128,7 +114,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session;
     },
     async jwt({ token, user }) {
+      // First time JWT is created (on sign in)
       if (user) {
+        token.sub = user.id; // Set user ID
         token.role = user.role;
       }
       return token;
