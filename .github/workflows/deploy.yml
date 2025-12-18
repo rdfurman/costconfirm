@@ -1,0 +1,88 @@
+name: Build and Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Docker image
+        run: |
+          docker build -t costconfirm:${{ github.sha }} -t costconfirm:latest .
+          docker save costconfirm:${{ github.sha }} | gzip > costconfirm-${{ github.sha }}.tar.gz
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+          cat > ~/.ssh/config <<EOF
+          Host deploy-server
+            HostName ${{ secrets.SSH_HOST }}
+            User ${{ secrets.SSH_USER }}
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking yes
+            UserKnownHostsFile ~/.ssh/known_hosts
+            BatchMode yes
+            LogLevel ERROR
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Test SSH connection
+        run: |
+          ssh deploy-server 'echo "SSH connection successful"'
+
+      - name: Transfer Docker image to server
+        run: |
+          rsync -avz --progress \
+            -e "ssh -F $HOME/.ssh/config" \
+            costconfirm-${{ github.sha }}.tar.gz \
+            deploy-server:/var/www/costconfirm/
+
+      - name: Transfer deployment files
+        run: |
+          rsync -avz \
+            -e "ssh -F $HOME/.ssh/config" \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='.next' \
+            docker-compose.production.yml \
+            scripts/deploy.sh \
+            scripts/migrate.sh \
+            scripts/backup.sh \
+            deploy-server:/var/www/costconfirm/
+
+      - name: Deploy application
+        run: |
+          ssh deploy-server "cd /var/www/costconfirm && bash deploy.sh ${{ github.sha }}"
+
+      - name: Verify deployment
+        run: |
+          ssh deploy-server "docker ps | grep costconfirm"
+          echo "Deployment completed successfully!"
+
+      - name: Cleanup old images
+        run: |
+          ssh deploy-server "cd /var/www/costconfirm && docker image prune -af --filter 'until=72h'"

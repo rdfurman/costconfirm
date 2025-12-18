@@ -1839,7 +1839,7 @@ No security.txt file for responsible disclosure.
 **Remediation:**
 Create `public/.well-known/security.txt`:
 ```
-Contact: security@costconfirm.com
+Contact: security@costconfirm.ca
 Expires: 2026-12-31T23:59:59.000Z
 Preferred-Languages: en
 ```
