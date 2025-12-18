@@ -75,6 +75,14 @@ export default function SignInPage() {
                 required
                 autoComplete="current-password"
               />
+              <div className="text-right">
+                <Link
+                  href="/auth/forgot-password"
+                  className="text-sm text-blue-600 hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
             </div>
 
             {error && (

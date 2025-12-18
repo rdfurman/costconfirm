@@ -22,6 +22,8 @@ export type SecurityEvent =
   | "registration_success"
   | "registration_failure"
   | "registration_rate_limit"
+  | "password_reset_requested"
+  | "password_reset_completed"
   | "unauthorized_access"
   | "data_access"
   | "data_modification"
