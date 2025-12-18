@@ -101,6 +101,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: user.email,
           name: user.name,
           role: user.role,
+          emailVerified: user.emailVerified,
         };
       },
     }),
@@ -110,15 +111,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token && session.user) {
         session.user.id = token.sub!;
         session.user.role = token.role as "CLIENT" | "ADMIN";
+        session.user.emailVerified = token.emailVerified as Date | null;
       }
       return session;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       // First time JWT is created (on sign in)
       if (user) {
         token.sub = user.id; // Set user ID
         token.role = user.role;
+        token.emailVerified = user.emailVerified;
       }
+
+      // Update token when email is verified (triggered by update)
+      if (trigger === "update" && token.sub) {
+        const updatedUser = await db.user.findUnique({
+          where: { id: token.sub },
+          select: { emailVerified: true },
+        });
+        if (updatedUser) {
+          token.emailVerified = updatedUser.emailVerified;
+        }
+      }
+
       return token;
     },
   },

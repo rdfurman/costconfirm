@@ -20,15 +20,16 @@ export async function GET(request: NextRequest) {
   const result = await verifyEmail(token);
 
   if (result.success) {
-    // Redirect to signin with success message
+    // Redirect to a special page that will trigger session refresh
+    // This page will update the session and then redirect to projects
     return NextResponse.redirect(
-      new URL("/auth/signin?verified=true", request.url)
+      new URL("/auth/verify-success", request.url)
     );
   } else {
-    // Redirect to signin with error
+    // Redirect to verify-email page with error
     return NextResponse.redirect(
       new URL(
-        `/auth/signin?error=${encodeURIComponent(result.message)}`,
+        `/auth/verify-email?error=${encodeURIComponent(result.message)}`,
         request.url
       )
     );

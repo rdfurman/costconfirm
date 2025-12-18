@@ -13,8 +13,14 @@
  */
 
 import crypto from "crypto";
+import { Resend } from "resend";
 import { db } from "@/lib/db";
 import { logSecurityEvent } from "@/lib/security-logger";
+
+// Lazy-load Resend to avoid build-time initialization
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY);
+}
 
 const TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -142,14 +148,6 @@ export async function isEmailVerified(userId: string): Promise<boolean> {
 /**
  * Send verification email
  *
- * TODO: Integrate with email service provider
- *
- * Options:
- * - Resend (https://resend.com) - Modern, developer-friendly
- * - SendGrid (https://sendgrid.com) - Established, reliable
- * - AWS SES - Cost-effective for scale
- * - Postmark - Transactional email specialist
- *
  * @param email - Recipient email
  * @param token - Verification token
  */
@@ -159,31 +157,7 @@ export async function sendVerificationEmail(
 ): Promise<void> {
   const verificationUrl = `${process.env.NEXTAUTH_URL}/api/auth/verify?token=${token}`;
 
-  // Log that verification email would be sent
-  console.log(`[EMAIL] Verification email for ${email}`);
-  console.log(`[EMAIL] Verification URL: ${verificationUrl}`);
-
-  // TODO: Replace with actual email service
-  // Example with Resend:
-  /*
-  import { Resend } from 'resend';
-  const resend = new Resend(process.env.RESEND_API_KEY);
-
-  await resend.emails.send({
-    from: 'CostConfirm <noreply@costconfirm.com>',
-    to: email,
-    subject: 'Verify your email address',
-    html: `
-      <h1>Welcome to CostConfirm!</h1>
-      <p>Please verify your email address by clicking the link below:</p>
-      <a href="${verificationUrl}">Verify Email</a>
-      <p>This link will expire in 24 hours.</p>
-      <p>If you didn't create an account, you can safely ignore this email.</p>
-    `,
-  });
-  */
-
-  // For development, just log the URL
+  // In development, also log to console for debugging
   if (process.env.NODE_ENV === "development") {
     console.log("\n===========================================");
     console.log("📧 EMAIL VERIFICATION");
@@ -192,6 +166,49 @@ export async function sendVerificationEmail(
     console.log(`Link: ${verificationUrl}`);
     console.log("===========================================\n");
   }
+
+  // Send email via Resend
+  await getResend().emails.send({
+    from: process.env.RESEND_FROM_EMAIL || "CostConfirm <onboarding@resend.dev>",
+    to: email,
+    subject: "Verify your CostConfirm email address",
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background-color: #f9fafb; border-radius: 8px; padding: 30px; margin: 20px 0;">
+            <h1 style="color: #111827; margin-top: 0;">Welcome to CostConfirm!</h1>
+            <p style="font-size: 16px; color: #4b5563;">
+              Thanks for signing up! Please verify your email address to get started.
+            </p>
+            <p style="font-size: 16px; color: #4b5563;">
+              Click the button below to verify your email:
+            </p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${verificationUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 500;">
+                Verify Email Address
+              </a>
+            </div>
+            <p style="font-size: 14px; color: #6b7280;">
+              This link will expire in <strong>24 hours</strong>.
+            </p>
+            <p style="font-size: 14px; color: #6b7280;">
+              If you didn't create a CostConfirm account, you can safely ignore this email.
+            </p>
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+            <p style="font-size: 12px; color: #9ca3af;">
+              If the button doesn't work, copy and paste this link into your browser:<br>
+              <a href="${verificationUrl}" style="color: #2563eb; word-break: break-all;">${verificationUrl}</a>
+            </p>
+          </div>
+        </body>
+      </html>
+    `,
+  });
 }
 
 /**
