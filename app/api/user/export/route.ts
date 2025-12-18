@@ -13,11 +13,11 @@ import { logSecurityEvent } from "@/lib/security-logger";
 export async function GET() {
   try {
     // Require authentication
-    const session = await requireAuth();
+    const user = await requireAuth();
 
     // Fetch all user data
     const userData = await db.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: user.id },
       select: {
         id: true,
         name: true,
@@ -48,8 +48,8 @@ export async function GET() {
     // Log data export event
     await logSecurityEvent({
       event: "data_access",
-      userId: session.user.id,
-      email: session.user.email || undefined,
+      userId: user.id,
+      email: user.email || undefined,
       action: "export",
       resource: "user_data",
       details: {

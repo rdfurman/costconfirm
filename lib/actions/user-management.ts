@@ -23,8 +23,8 @@ import { signOut } from "@/lib/auth";
  */
 export async function deleteUserAccount() {
   try {
-    const session = await requireAuth();
-    const userId = session.user.id;
+    const user = await requireAuth();
+    const userId = user.id;
 
     // Verify CSRF - prevent cross-site deletion attacks
     await verifySensitiveOperation(userId, "delete_user_account");
@@ -70,7 +70,7 @@ export async function deleteUserAccount() {
     await logSecurityEvent({
       event: "data_deletion",
       userId,
-      email: session.user.email || undefined,
+      email: user.email || undefined,
       action: "delete_account",
       resource: "user",
       details: {
@@ -106,15 +106,15 @@ export async function deleteUserAccount() {
  */
 export async function permanentlyDeleteUser(userId: string) {
   try {
-    const session = await requireAuth();
+    const user = await requireAuth();
 
     // Only admins can permanently delete users
-    if (session.user.role !== "ADMIN") {
+    if (user.role !== "ADMIN") {
       throw new Error("Unauthorized: Admin access required");
     }
 
     // Verify CSRF - prevent cross-site admin actions
-    await verifySensitiveOperation(session.user.id, `permanent_delete_user:${userId}`);
+    await verifySensitiveOperation(user.id, `permanent_delete_user:${userId}`);
 
     // Perform hard delete in a transaction
     await db.$transaction(async (tx) => {
@@ -165,7 +165,7 @@ export async function permanentlyDeleteUser(userId: string) {
     // Log admin action
     await logSecurityEvent({
       event: "admin_action",
-      userId: session.user.id,
+      userId: user.id,
       action: "permanent_delete_user",
       resource: `user:${userId}`,
       details: {
@@ -196,10 +196,10 @@ export async function permanentlyDeleteUser(userId: string) {
  */
 export async function getDeletedUsers() {
   try {
-    const session = await requireAuth();
+    const user = await requireAuth();
 
     // Only admins can view deleted users
-    if (session.user.role !== "ADMIN") {
+    if (user.role !== "ADMIN") {
       throw new Error("Unauthorized: Admin access required");
     }
 
@@ -248,10 +248,10 @@ export async function getDeletedUsers() {
  */
 export async function restoreUser(userId: string) {
   try {
-    const session = await requireAuth();
+    const user = await requireAuth();
 
     // Only admins can restore users
-    if (session.user.role !== "ADMIN") {
+    if (user.role !== "ADMIN") {
       throw new Error("Unauthorized: Admin access required");
     }
 
@@ -276,7 +276,7 @@ export async function restoreUser(userId: string) {
     // Log admin action
     await logSecurityEvent({
       event: "admin_action",
-      userId: session.user.id,
+      userId: user.id,
       action: "restore_user",
       resource: `user:${userId}`,
     });
