@@ -82,5 +82,6 @@ jobs:
           echo "Deployment completed successfully!"
 
       - name: Cleanup old images
+        continue-on-error: true
         run: |
-          ssh deploy-server "cd /var/www/costconfirm && docker image prune -af --filter 'until=72h'"
+          ssh deploy-server "cd /var/www/costconfirm && docker image prune -af --filter 'until=72h' || true"
