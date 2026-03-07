@@ -174,10 +174,14 @@ The application is containerized for easy local development:
 
 ## Important Conventions
 
+### Git Commits
+- Commit messages must be a single short line (no body, no bullet points, no multi-line)
+- Example: `Fix auth redirect for unauthenticated users`
+
 ### Documentation
 - All documentation markdown files (*.md) must be placed in the `docs/` folder
 - Examples: security audits, implementation plans, phase completion summaries
-- Exception: Root-level files like README.md and CLAUDE.md
+- Exception: Root-level files like README.md and AGENTS.md
 - Use descriptive filenames: `PHASE1_COMPLETE.md`, `SECURITY_AUDIT.md`, etc.
 
 ### Authentication & Authorization
