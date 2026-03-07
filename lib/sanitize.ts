@@ -21,19 +21,18 @@ export function sanitizeText(text: string): string {
     return "";
   }
 
-  return (
-    text
-      // Remove any HTML tags
-      .replace(/<[^>]*>/g, "")
-      // Remove script tags and their content
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-      // Remove any null bytes
-      .replace(/\0/g, "")
-      // Remove control characters except newlines and tabs
-      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
-      // Normalize whitespace
-      .trim()
-  );
+  // Strip HTML tags in a loop to prevent nested-tag bypass (e.g. <sc<ript>)
+  let result = text;
+  let prev: string;
+  do {
+    prev = result;
+    result = result.replace(/<[^>]*>/g, "");
+  } while (result !== prev);
+
+  return result
+    .replace(/\0/g, "")
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
+    .trim();
 }
 
 /**
@@ -71,21 +70,19 @@ export function sanitizeMultilineText(text: string): string {
     return "";
   }
 
-  return (
-    text
-      // Remove HTML tags
-      .replace(/<[^>]*>/g, "")
-      // Remove script tags and content
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-      // Remove null bytes
-      .replace(/\0/g, "")
-      // Remove control characters except newlines, carriage returns, and tabs
-      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
-      // Normalize multiple newlines to max 2
-      .replace(/\n{3,}/g, "\n\n")
-      // Trim
-      .trim()
-  );
+  // Strip HTML tags in a loop to prevent nested-tag bypass (e.g. <sc<ript>)
+  let result = text;
+  let prev: string;
+  do {
+    prev = result;
+    result = result.replace(/<[^>]*>/g, "");
+  } while (result !== prev);
+
+  return result
+    .replace(/\0/g, "")
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 /**
